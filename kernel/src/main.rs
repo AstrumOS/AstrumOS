@@ -3,35 +3,76 @@
 
 use core::arch::asm;
 
+use limine::framebuffer::Framebuffer;
 use limine::request::FramebufferRequest;
 use limine::BaseRevision;
 
-/// Sets the base revision to the latest revision supported by the crate.
-/// See specification for further info.
-// Be sure to mark all limine requests with #[used], otherwise they may be removed by the compiler.
+use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
+
+#[repr(C)]
+struct Color {
+    red: u8,
+    green: u8,
+    blue: u8,
+    alpha: u8,
+}
+
+impl Color {
+    fn raw_int(self) -> u32 {
+        unsafe {
+            return core::mem::transmute(self);
+        };
+    }
+}
+
 #[used]
 static BASE_REVISION: BaseRevision = BaseRevision::new();
 
 #[used]
 static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
 
-#[no_mangle]
-unsafe extern "C" fn _start() -> ! {
-    // All limine requests must also be referenced in a called function, otherwise they may be
-    // removed by the linker.
-    assert!(BASE_REVISION.is_supported());
+fn put_pixel(x: usize, y: usize, color: Color, framebuffer: &Framebuffer) {
+    // pitch is provided in bytes
+    let pixel_offset = y * framebuffer.pitch() as usize + x * 4;
 
+    unsafe {
+        *(framebuffer.addr().add(pixel_offset) as *mut u32) = color.raw_int();
+    }
+}
+
+fn put_char(x: usize, y: usize, c: char) {
     if let Some(framebuffer_response) = FRAMEBUFFER_REQUEST.get_response() {
         if let Some(framebuffer) = framebuffer_response.framebuffers().next() {
-            for i in 0..100_u64 {
-                // Calculate the pixel offset using the framebuffer information we obtained above.
-                // We skip `i` scanlines (pitch is provided in bytes) and add `i * 4` to skip `i` pixels forward.
-                let pixel_offset = i * framebuffer.pitch() + i * 4;
+            let width = get_raster_width(FontWeight::Regular, RasterHeight::Size24);
 
-                // Write 0xFFFFFFFF to the provided pixel offset to fill it white.
-                *(framebuffer.addr().add(pixel_offset as usize) as *mut u32) = 0xFFFFFFFF;
+            let char_raster =
+                get_raster(c, FontWeight::Regular, RasterHeight::Size24).expect("unsupported char");
+
+            for (row_i, row) in char_raster.raster().iter().enumerate() {
+                for (col_i, pixel) in row.iter().enumerate() {
+                    let color = Color {
+                        red: *pixel,
+                        green: *pixel,
+                        blue: *pixel,
+                        alpha: 255,
+                    };
+
+                    let pixel_x = x * width + col_i;
+                    let pixel_y = y * RasterHeight::Size24.val() + row_i;
+
+                    put_pixel(pixel_x, pixel_y, color, &framebuffer);
+                }
             }
         }
+    }
+}
+
+#[no_mangle]
+unsafe extern "C" fn _start() -> ! {
+    assert!(BASE_REVISION.is_supported());
+
+    for (i, c) in "Hello World!".chars().enumerate() {
+        put_char(i, 0, c);
     }
 
     hcf();

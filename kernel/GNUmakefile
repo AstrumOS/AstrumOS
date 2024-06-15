@@ -2,7 +2,7 @@
 override MAKEFLAGS += -rR
 
 ifeq ($(RUST_TARGET),)
-    override RUST_TARGET := x86_64-unknown-none
+    override RUST_TARGET := x86_64-unknown-astrumos
 endif
 
 ifeq ($(RUST_PROFILE),)
@@ -17,7 +17,7 @@ endif
 # Default target.
 .PHONY: all
 all:
-	cargo build --target $(RUST_TARGET) --profile $(RUST_PROFILE)
+	cargo build --target $(RUST_TARGET).json --profile $(RUST_PROFILE)
 	cp target/$(RUST_TARGET)/$(RUST_PROFILE_SUBDIR)/$$(cd target/$(RUST_TARGET)/$(RUST_PROFILE_SUBDIR) && find -maxdepth 1 -perm -111 -type f) kernel
 
 # Remove object files and the final executable.

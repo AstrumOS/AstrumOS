@@ -15,9 +15,9 @@
     in
       pkgs.mkShell {
         packages = with pkgs; [
-          rustc
-          cargo
-          clippy
+          rustup
+          lldb_18
+          qemu
           libisoburn
           gptfdisk
           gnumake
